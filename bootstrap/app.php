@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust Render's load balancer so HTTPS URLs are generated correctly
+        $middleware->trustProxies(at: '*');
+
         $middleware->appendToGroup('api', \Illuminate\Http\Middleware\HandleCors::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

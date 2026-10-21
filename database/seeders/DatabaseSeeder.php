@@ -14,6 +14,11 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Skip if demo data already exists (keeps the seeder safe to run on every boot)
+        if (User::where('email', 'admin@descuentonic.com')->exists()) {
+            return;
+        }
+
         $categories = [
             ['Restaurantes', 'restaurantes', 'utensils', 1],
             ['Farmacias', 'farmacias', 'pill', 2],
@@ -29,9 +34,8 @@ class DatabaseSeeder extends Seeder
         ];
 
         $categoryModels = collect($categories)->mapWithKeys(function ($row) {
-            $model = Category::create([
+            $model = Category::firstOrCreate(['slug' => $row[1]], [
                 'name' => $row[0],
-                'slug' => $row[1],
                 'icon' => $row[2],
                 'sort_order' => $row[3],
             ]);

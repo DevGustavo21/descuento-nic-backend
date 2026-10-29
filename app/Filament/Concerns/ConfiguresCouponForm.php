@@ -2,6 +2,7 @@
 
 namespace App\Filament\Concerns;
 
+use App\Support\SiteConfig;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -19,20 +20,26 @@ trait ConfiguresCouponForm
         $components = [];
 
         if ($forAdmin) {
-            $components[] = Select::make('business_id')
-                ->relationship('business', 'name')
-                ->required()
-                ->searchable()
-                ->preload();
+            $components[] = Section::make('Negocio')
+                ->schema([
+                    Select::make('business_id')
+                        ->label('Negocio')
+                        ->relationship('business', 'name')
+                        ->required()
+                        ->searchable()
+                        ->preload(),
+                ]);
         }
 
-        $components[] = Section::make('Cupón')
+        $components[] = Section::make('Oferta')
+            ->description('Lo que verá el cliente en el catálogo.')
             ->schema([
                 TextInput::make('title')
                     ->label('Título')
                     ->required()
                     ->maxLength(120)
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->placeholder('Ej. 2x1 en combos de almuerzo'),
                 Select::make('discount_type')
                     ->label('Tipo de descuento')
                     ->options([
@@ -49,7 +56,22 @@ trait ConfiguresCouponForm
                     ->minValue(1)
                     ->helperText(fn ($get) => $get('discount_type') === 'amount'
                         ? 'Monto a descontar en C$'
-                        : 'Porcentaje de descuento'),
+                        : 'Porcentaje de descuento (1–100)'),
+                TextInput::make('code')
+                    ->label('Código')
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->helperText('La plataforma genera el código al guardar.'),
+                Textarea::make('terms')
+                    ->label('Condiciones')
+                    ->rows(3)
+                    ->columnSpanFull()
+                    ->placeholder('No acumulable con otras promociones. Válido en sucursales participantes.'),
+            ])
+            ->columns(2);
+
+        $components[] = Section::make('Vigencia y cupos')
+            ->schema([
                 DatePicker::make('starts_at')
                     ->label('Inicio (opcional)')
                     ->native(false),
@@ -64,31 +86,35 @@ trait ConfiguresCouponForm
                     ->required()
                     ->default(100)
                     ->minValue(1),
-                TextInput::make('code')
-                    ->label('Código')
-                    ->disabled()
-                    ->dehydrated(false)
-                    ->helperText('La plataforma genera el código al guardar.'),
+                Select::make('status')
+                    ->label('Estado')
+                    ->options($forAdmin
+                        ? [
+                            'active' => 'Activo',
+                            'paused' => 'Pausado',
+                            'expired' => 'Vencido (forzado)',
+                        ]
+                        : [
+                            'active' => 'Activo',
+                            'paused' => 'Pausado',
+                        ])
+                    ->default('active')
+                    ->required(),
+            ])
+            ->columns(2);
+
+        $components[] = Section::make('Canales y pagos')
+            ->description('Cómo y dónde puede usar el cliente este cupón.')
+            ->schema([
                 CheckboxList::make('channels')
                     ->label('Canales de venta')
-                    ->options(config('descuentonic.channels'))
+                    ->options(fn () => SiteConfig::channels())
                     ->columns(2)
                     ->required(),
                 CheckboxList::make('payment_methods')
                     ->label('Medios de pago')
-                    ->options(config('descuentonic.payment_methods'))
+                    ->options(fn () => SiteConfig::paymentMethods())
                     ->columns(2)
-                    ->required(),
-                Textarea::make('terms')
-                    ->label('Condiciones')
-                    ->rows(3)
-                    ->columnSpanFull(),
-                Select::make('status')
-                    ->options([
-                        'active' => 'Activo',
-                        'paused' => 'Pausado',
-                    ])
-                    ->default('active')
                     ->required(),
             ])
             ->columns(2);

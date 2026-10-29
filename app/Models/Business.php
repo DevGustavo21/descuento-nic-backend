@@ -11,13 +11,18 @@ class Business extends Model
 {
     protected $fillable = [
         'name', 'slug', 'logo_path', 'website', 'email_domain', 'phone', 'ruc',
-        'department', 'city', 'category_id', 'status', 'notes', 'approved_at',
+        'department', 'city', 'address', 'description', 'category_id', 'status',
+        'notes', 'rejection_reason', 'rejected_at', 'rejected_by', 'approved_at',
+        'approved_by', 'plan', 'is_featured', 'featured_until',
     ];
 
     protected function casts(): array
     {
         return [
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'featured_until' => 'datetime',
+            'is_featured' => 'boolean',
         ];
     }
 
@@ -50,9 +55,37 @@ class Business extends Model
         return $this->hasMany(Redemption::class);
     }
 
+    public function branches(): HasMany
+    {
+        return $this->hasMany(BusinessBranch::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
     public function isApproved(): bool
     {
         return $this->status === 'approved';
+    }
+
+    public function isFeaturedNow(): bool
+    {
+        if (! $this->is_featured && $this->plan !== 'featured') {
+            return false;
+        }
+
+        if ($this->featured_until && $this->featured_until->isPast()) {
+            return false;
+        }
+
+        return true;
     }
 
     public function logoUrl(): string
@@ -61,14 +94,9 @@ class Business extends Model
             return $this->logo_path;
         }
 
-        if ($this->logo_path) {
-            return url('/storage/'.$this->logo_path);
-        }
+        // Always go through a mime-aware route so WebP/JPEG/PNG/SVG render correctly.
+        $version = $this->updated_at?->timestamp ?? $this->id;
 
-        if ($this->slug) {
-            return \App\Support\BusinessLogo::dataUri($this->name, $this->slug);
-        }
-
-        return \App\Support\BusinessLogo::dataUri($this->name ?: 'DN', 'descuento-nic');
+        return url('/media/businesses/'.$this->id.'/logo').'?v='.$version;
     }
 }

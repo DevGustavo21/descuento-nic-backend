@@ -13,6 +13,7 @@ class Coupon extends Model
         'business_id', 'category_id', 'title', 'code', 'discount_type',
         'discount_value', 'starts_at', 'expires_at', 'max_redemptions',
         'redemptions_count', 'channels', 'payment_methods', 'terms', 'status',
+        'force_expired_at', 'moderated_by',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class Coupon extends Model
             'expires_at' => 'date',
             'channels' => 'array',
             'payment_methods' => 'array',
+            'force_expired_at' => 'datetime',
         ];
     }
 
@@ -58,14 +60,28 @@ class Coupon extends Model
         return $this->hasMany(Redemption::class);
     }
 
+    public function moderatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'moderated_by');
+    }
+
     public function remainingRedemptions(): int
     {
         return max(0, $this->max_redemptions - $this->redemptions_count);
     }
 
+    public function isForceExpired(): bool
+    {
+        return $this->force_expired_at !== null || $this->status === 'expired';
+    }
+
     public function isPubliclyVisible(): bool
     {
         if ($this->status !== 'active') {
+            return false;
+        }
+
+        if ($this->force_expired_at) {
             return false;
         }
 

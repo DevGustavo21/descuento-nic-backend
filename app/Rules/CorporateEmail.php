@@ -2,6 +2,7 @@
 
 namespace App\Rules;
 
+use App\Support\SiteConfig;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -25,7 +26,7 @@ class CorporateEmail implements ValidationRule
             return;
         }
 
-        if (in_array($domain, config('descuentonic.free_email_domains'), true)) {
+        if (in_array($domain, SiteConfig::freeEmailDomains(), true)) {
             $fail('Usá un correo corporativo (@tuempresa.com). No se aceptan Gmail, Outlook, Yahoo ni similares.');
         }
     }

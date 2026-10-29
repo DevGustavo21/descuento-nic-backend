@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Banner;
 use App\Models\Business;
 use App\Models\Category;
 use App\Models\Coupon;
@@ -14,8 +15,12 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Skip if demo data already exists (keeps the seeder safe to run on every boot)
+        $this->seedBanners();
+
+        // Skip full demo seed if it already exists, but still backfill merchant logins
         if (User::where('email', 'admin@descuentonic.com')->exists()) {
+            $this->seedMissingMerchantUsers();
+
             return;
         }
 
@@ -83,6 +88,8 @@ class DatabaseSeeder extends Seeder
             $slug = Str::slug($name);
             BusinessLogo::writeSvg($name, $slug);
 
+            $isFeatured = $name === 'GymFit Pro';
+
             $business = Business::create([
                 'name' => $name,
                 'slug' => $slug,
@@ -93,17 +100,12 @@ class DatabaseSeeder extends Seeder
                 'approved_at' => now(),
                 'email_domain' => $slug.'.com.ni',
                 'phone' => '+505 8000 '.str_pad((string) (1000 + $index), 4, '0', STR_PAD_LEFT),
+                'plan' => $isFeatured ? 'featured' : 'free',
+                'is_featured' => $isFeatured,
+                'featured_until' => $isFeatured ? now()->addMonths(2) : null,
             ]);
 
-            if ($index === 0) {
-                User::factory()->create([
-                    'name' => 'María López',
-                    'email' => 'contacto@burgerhouse.com.ni',
-                    'role' => 'merchant',
-                    'phone' => $business->phone,
-                    'business_id' => $business->id,
-                ]);
-            }
+            $this->createMerchantForBusiness($business, $index === 0 ? 'María López' : null);
 
             Coupon::create([
                 'business_id' => $business->id,
@@ -111,13 +113,88 @@ class DatabaseSeeder extends Seeder
                 'title' => $title,
                 'discount_type' => $type,
                 'discount_value' => $value,
-                'expires_at' => now()->addDays(20 + $index),
-                'max_redemptions' => 80 + ($index * 3),
-                'redemptions_count' => $index * 2,
+                'expires_at' => now()->addDays(45 + $index),
+                'max_redemptions' => 80,
+                'redemptions_count' => 0,
                 'channels' => [$channel, 'whatsapp'],
                 'payment_methods' => ['cash', 'card', 'transfer'],
                 'status' => 'active',
                 'terms' => 'No acumulable con otras promociones. Válido en sucursales participantes.',
+            ]);
+        }
+    }
+
+    protected function seedMissingMerchantUsers(): void
+    {
+        Business::query()
+            ->whereDoesntHave('users')
+            ->orderBy('id')
+            ->get()
+            ->each(fn (Business $business) => $this->createMerchantForBusiness($business));
+    }
+
+    protected function createMerchantForBusiness(Business $business, ?string $name = null): void
+    {
+        $domain = $business->email_domain ?: Str::slug($business->name).'.com.ni';
+        $email = 'contacto@'.$domain;
+
+        if (User::query()->where('email', $email)->exists()) {
+            return;
+        }
+
+        User::factory()->create([
+            'name' => $name ?: ('Contacto '.$business->name),
+            'email' => $email,
+            'role' => 'merchant',
+            'phone' => $business->phone,
+            'business_id' => $business->id,
+            'is_active' => true,
+        ]);
+    }
+
+    protected function seedBanners(): void
+    {
+        if (Banner::query()->exists()) {
+            return;
+        }
+
+        $slides = [
+            [
+                'kicker' => 'Espacio publicitario',
+                'title' => 'Llevá tu negocio a miles de clientes en Nicaragua',
+                'text' => 'Publicá cupones y aparecé en el banner destacado de DescuentoNic.',
+                'cta_label' => 'Quiero promocionar',
+                'cta_url' => url('/negocio/register'),
+                'image_url' => 'https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1600&q=80',
+                'tone' => 'from-rose-700/85 to-rose-900/70',
+                'sort_order' => 1,
+            ],
+            [
+                'kicker' => 'Oferta destacada',
+                'title' => 'GymFit Pro: membresía con el primer mes incluido',
+                'text' => 'Válido en sucursales de Managua. Cupos limitados esta semana.',
+                'cta_label' => 'Ver cupones de gimnasios',
+                'cta_url' => '/categoria/gimnasios',
+                'image_url' => 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80',
+                'tone' => 'from-indigo-800/85 to-slate-900/70',
+                'sort_order' => 2,
+            ],
+            [
+                'kicker' => 'Sabores de la semana',
+                'title' => 'Restaurantes con hasta 50% en combos y delivery',
+                'text' => 'Managua, León, Granada y más. Pedí con código en caja o WhatsApp.',
+                'cta_label' => 'Ver restaurantes',
+                'cta_url' => '/categoria/restaurantes',
+                'image_url' => 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1600&q=80',
+                'tone' => 'from-amber-700/80 to-stone-900/70',
+                'sort_order' => 3,
+            ],
+        ];
+
+        foreach ($slides as $slide) {
+            Banner::create([
+                ...$slide,
+                'is_active' => true,
             ]);
         }
     }

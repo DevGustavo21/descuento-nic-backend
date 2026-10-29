@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Auth;
 use App\Models\Business;
 use App\Models\Category;
 use App\Rules\CorporateEmail;
+use App\Support\SiteConfig;
 use Filament\Auth\Pages\Register as BaseRegister;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -31,10 +32,7 @@ class RegisterBusiness extends BaseRegister
                     ->required(),
                 Select::make('department')
                     ->label('Departamento')
-                    ->options(array_combine(
-                        config('descuentonic.departments'),
-                        config('descuentonic.departments'),
-                    ))
+                    ->options(fn () => array_combine(SiteConfig::departments(), SiteConfig::departments()))
                     ->required()
                     ->searchable(),
                 TextInput::make('phone')

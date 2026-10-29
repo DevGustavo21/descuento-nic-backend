@@ -1,4 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Supermercado La Unión">
-  <rect width="96" height="96" rx="22" fill="#C2410C"/>
-  <text x="48" y="58" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" fill="#ffffff">SL</text>
+  <defs>
+    <linearGradient id="g97d93d49" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C2410C"/>
+      <stop offset="100%" stop-color="#9A3412"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="22" fill="url(#g97d93d49)"/>
+  <circle cx="72" cy="22" r="28" fill="rgba(255,255,255,0.12)"/>
+  <circle cx="18" cy="78" r="20" fill="rgba(255,255,255,0.10)"/>
+  <rect x="18" y="18" width="60" height="60" rx="18" fill="rgba(255,255,255,0.16)"/>
+  <text x="48" y="58" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#ffffff">SL</text>
 </svg>

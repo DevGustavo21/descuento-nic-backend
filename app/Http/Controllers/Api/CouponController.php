@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Coupon;
+use App\Support\CouponQr;
+use App\Support\SiteConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class CouponController extends Controller
 {
@@ -15,6 +19,7 @@ class CouponController extends Controller
         $query = Coupon::query()
             ->with(['business.category', 'category'])
             ->where('status', 'active')
+            ->whereNull('force_expired_at')
             ->whereDate('expires_at', '>=', now())
             ->whereColumn('redemptions_count', '<', 'max_redemptions')
             ->whereHas('business', fn ($q) => $q->where('status', 'approved'));
@@ -36,8 +41,14 @@ class CouponController extends Controller
         }
 
         if ($request->filled('min_discount')) {
-            $query->where('discount_type', 'percent')
-                ->where('discount_value', '>=', (int) $request->input('min_discount'));
+            $minDiscount = (int) $request->input('min_discount');
+
+            $query->where(function ($q) use ($minDiscount) {
+                $q->where(function ($percent) use ($minDiscount) {
+                    $percent->where('discount_type', 'percent')
+                        ->where('discount_value', '>=', $minDiscount);
+                })->orWhere('discount_type', 'amount');
+            });
         }
 
         if ($channel = $request->string('channel')->toString()) {
@@ -51,6 +62,21 @@ class CouponController extends Controller
         if ($request->string('vigencia')->toString() === 'new') {
             $query->where('created_at', '>=', now()->subDays(14));
         }
+
+        $featuredPredicate = DB::getDriverName() === 'pgsql'
+            ? "(b.is_featured = true OR b.plan = 'featured')"
+            : "(b.is_featured = 1 OR b.plan = 'featured')";
+
+        $query->orderByRaw("
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM businesses b
+                    WHERE b.id = coupons.business_id
+                      AND {$featuredPredicate}
+                      AND (b.featured_until IS NULL OR b.featured_until >= ?)
+                ) THEN 0 ELSE 1
+            END
+        ", [now()]);
 
         $sort = $request->string('sort')->toString();
         match ($sort) {
@@ -76,13 +102,27 @@ class CouponController extends Controller
         return response()->json($this->serialize($coupon));
     }
 
+    public function qr(string $code): Response
+    {
+        $coupon = Coupon::query()
+            ->whereRaw('UPPER(code) = ?', [strtoupper($code)])
+            ->firstOrFail();
+
+        $svg = CouponQr::svg(CouponQr::redeemUrl($coupon->code));
+
+        return response($svg, 200, [
+            'Content-Type' => 'image/svg+xml; charset=UTF-8',
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }
+
     public function filters(): JsonResponse
     {
         return response()->json([
             'categories' => Category::query()->orderBy('sort_order')->get(['name', 'slug', 'icon']),
-            'departments' => config('descuentonic.departments'),
-            'channels' => config('descuentonic.channels'),
-            'payment_methods' => config('descuentonic.payment_methods'),
+            'departments' => SiteConfig::departments(),
+            'channels' => SiteConfig::channels(),
+            'payment_methods' => SiteConfig::paymentMethods(),
         ]);
     }
 
@@ -103,6 +143,7 @@ class CouponController extends Controller
 
         return [
             'id' => $coupon->id,
+            'business_id' => $coupon->business_id,
             'title' => $coupon->title,
             'code' => $coupon->code,
             'store' => $coupon->business?->name,
@@ -121,6 +162,8 @@ class CouponController extends Controller
             'badge' => $badge,
             'remaining' => $coupon->remainingRedemptions(),
             'max_redemptions' => $coupon->max_redemptions,
+            'redeem_url' => CouponQr::redeemUrl($coupon->code),
+            'qr_url' => url('/api/coupons/'.$coupon->code.'/qr'),
         ];
     }
 }
